@@ -1,0 +1,109 @@
+1
+
+Project foundation
+Flutter setup, dependencies and project structure
+
+
+
+2
+
+Design system and navigation
+Theme, reusable components and screen navigation
+
+
+
+3
+
+Home dashboard
+Create Bill, recent bills and settings shortcuts
+
+
+
+4
+
+Bill editor — basic fields
+Customer, date and editable company details
+
+
+
+5
+
+Dynamic bill items
+S.No, Particular / Detail, Amount and row management
+
+
+
+6
+
+Discounts and calculations
+Row discounts, bill discount and automatic totals
+
+
+
+7
+
+Database and autosave
+SQLite, persistent settings and recoverable drafts
+
+
+
+8
+
+Previous seven bills
+History, editing, deletion and retention rules
+
+
+
+9
+
+Physical-style bill preview
+Accurate printable bill layout
+
+
+
+10
+
+PDF and JPG export
+Save, print and share exported bills
+
+
+
+11
+
+Voice input — basic
+Microphone, speech recognition and field dictation
+
+
+
+12
+
+Voice input — intelligent parsing
+Multiple items, amounts, discounts and corrections
+
+
+
+13
+
+Validation and error handling
+Protect data and handle failures gracefully
+
+
+
+14
+
+UI polish and responsiveness
+Keyboard behavior, accessibility and screen sizes
+
+
+
+15
+
+Testing and bug fixing
+Calculation, storage, voice and export testing
+
+
+
+16
+
+Android release
+Build, install and verify the final APK

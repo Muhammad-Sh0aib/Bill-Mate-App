@@ -1,0 +1,67 @@
+name: bill_mate
+description: "BillMate — Smart billing application for mechanical workshops."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+# ── Runtime dependencies ──────────────────────────────────────────────
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+  # State management and dependency injection
+  flutter_riverpod: ^3.4.3
+
+  # Navigation
+  go_router: ^18.1.0
+
+  # Internationalisation — date and currency formatting
+  intl: ^0.20.3
+
+  # Local SQLite database (foundation; full persistence in Phase 7)
+  sqflite: ^2.4.4
+  sqflite_common_ffi: ^2.3.5
+  path: ^1.9.1
+
+  # Small non-sensitive app preferences
+  shared_preferences: ^2.5.6
+  sqflite_common_ffi_web: ^1.2.0
+  pdf: ^3.13.1
+  printing: ^5.15.1
+  share_plus: ^13.3.1
+  flutter_file_dialog: ^3.3.3
+  image: ^4.12.0
+  speech_to_text: ^7.5.0
+  app_settings: ^9.0.1
+
+# ── Development dependencies ──────────────────────────────────────────
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Lint rules for Flutter projects
+  flutter_lints: ^6.0.0
+
+# ── Additional OS integrations ───────────────────────────────────────
+# Voice dictation and system settings access for microphone permission flow.
+
+# ── Flutter configuration ─────────────────────────────────────────────
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf
+
+  # Fonts: Google Fonts or custom font files go here.
+  # The current design uses the system font stack (Roboto on Android).
+  # fonts:
+  #   - family: YourFont
+  #     fonts:
+  #       - asset: fonts/YourFont-Regular.ttf
