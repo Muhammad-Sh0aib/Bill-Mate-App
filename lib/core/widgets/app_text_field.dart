@@ -33,6 +33,8 @@ class AppTextField extends StatelessWidget {
     this.focusNode,
     this.initialValue,
     this.textCapitalization = TextCapitalization.none,
+    this.textDirection,
+    this.textAlign = TextAlign.start,
     this.semanticLabel,
     this.isRequired = false,
     this.errorText,
@@ -99,6 +101,12 @@ class AppTextField extends StatelessWidget {
 
   /// Text capitalization behavior.
   final TextCapitalization textCapitalization;
+
+  /// Direction override for fields with a known writing direction.
+  final TextDirection? textDirection;
+
+  /// Text alignment inside the input.
+  final TextAlign textAlign;
 
   /// Accessible label override.
   final String? semanticLabel;
@@ -170,6 +178,8 @@ class AppTextField extends StatelessWidget {
             autofocus: autofocus,
             focusNode: focusNode,
             textCapitalization: textCapitalization,
+            textDirection: textDirection,
+            textAlign: textAlign,
             obscureText: obscureText,
             style: AppTextStyles.inputText.copyWith(
               color: isDark ? const Color(0xFFE8ECF0) : AppColors.textPrimary,

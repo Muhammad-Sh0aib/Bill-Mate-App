@@ -8,11 +8,14 @@ import 'package:bill_mate/app/router/app_router.dart';
 import 'package:bill_mate/app/router/route_names.dart';
 import 'package:bill_mate/core/utils/date_utils.dart';
 import 'package:bill_mate/features/bills/application/bill_draft_provider.dart';
+import 'package:bill_mate/features/bills/application/bill_repository_provider.dart';
 import 'package:bill_mate/features/bills/domain/bill_draft.dart';
 import 'package:bill_mate/features/company_settings/data/company_settings_repository.dart';
 import 'package:bill_mate/features/company_settings/domain/company_details.dart';
 import 'package:bill_mate/features/company_settings/application/company_settings_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'support/in_memory_repositories.dart';
 
 Future<void> _openNewBill(
   WidgetTester tester, {
@@ -21,10 +24,10 @@ Future<void> _openNewBill(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        if (companySettingsRepository != null)
-          companySettingsRepositoryProvider.overrideWithValue(
-            companySettingsRepository,
-          ),
+        billRepositoryProvider.overrideWithValue(EmptyBillRepository()),
+        companySettingsRepositoryProvider.overrideWithValue(
+          companySettingsRepository ?? _MemoryCompanySettingsRepository(),
+        ),
       ],
       child: const BillMateApp(),
     ),
@@ -133,13 +136,18 @@ void main() {
       await _openNewBill(tester);
 
       expect(find.text('Customer Details'), findsOneWidget);
+      expect(find.text(AppConfig.defaultCompanyName), findsOneWidget);
+      expect(find.text(AppConfig.defaultCompanyPhone), findsOneWidget);
+      await tester.dragUntilVisible(
+        find.text('Bill Items'),
+        find.byType(ListView).first,
+        const Offset(0, -300),
+      );
       expect(find.text('Bill Items'), findsOneWidget);
       expect(
         find.text('No items yet. Add a service or repair entry.'),
         findsOneWidget,
       );
-      expect(find.text(AppConfig.defaultCompanyName), findsOneWidget);
-      expect(find.text(AppConfig.defaultCompanyPhone), findsOneWidget);
       await tester.dragUntilVisible(
         find.text('Save Bill'),
         find.byType(ListView).first,

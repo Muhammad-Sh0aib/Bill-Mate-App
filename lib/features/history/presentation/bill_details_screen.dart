@@ -153,6 +153,8 @@ class _BillDetailsScreenState extends ConsumerState<BillDetailsScreen> {
     final totals = const BillTotalsCalculator().calculate(
       items: bill.items,
       billDiscount: bill.billDiscount,
+      previousRemainingPaisa: bill.previousRemainingInPaisa.toInt(),
+      advancePaymentPaisa: bill.advancePaymentInPaisa.toInt(),
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListView(
@@ -266,9 +268,33 @@ class _BillDetailsScreenState extends ConsumerState<BillDetailsScreen> {
                   valueColor: AppColors.success,
                 ),
               const Divider(height: AppSpacing.lg),
+              if (bill.previousRemainingInPaisa > BigInt.zero)
+                _DetailRow(
+                  label: 'Previous Remaining',
+                  value: BillAmount.formatPaisaBigInt(
+                    bill.previousRemainingInPaisa,
+                  ),
+                ),
+              if (bill.advancePaymentInPaisa > BigInt.zero)
+                _DetailRow(
+                  label: 'Advance Payment',
+                  value:
+                      '-${BillAmount.formatPaisaBigInt(bill.advancePaymentInPaisa)}',
+                ),
+              if (bill.previousRemainingInPaisa > BigInt.zero ||
+                  bill.advancePaymentInPaisa > BigInt.zero)
+                _DetailRow(
+                  label: 'Bill Payable',
+                  value: BillAmount.formatPaisaBigInt(bill.finalPayableInPaisa),
+                  emphasized: true,
+                ),
               _DetailRow(
-                label: 'Final payable',
-                value: BillAmount.formatPaisaBigInt(bill.finalPayableInPaisa),
+                label:
+                    bill.previousRemainingInPaisa > BigInt.zero ||
+                        bill.advancePaymentInPaisa > BigInt.zero
+                    ? 'Net Amount Due'
+                    : 'Final payable',
+                value: BillAmount.formatPaisaBigInt(totals.netAmountDueInPaisa),
                 emphasized: true,
               ),
             ],
@@ -286,7 +312,7 @@ class _BillDetailsScreenState extends ConsumerState<BillDetailsScreen> {
         const SizedBox(height: AppSpacing.sm),
         BillExportActions(
           bill: BillDocumentData.fromRecord(bill),
-          paperSize: BillPaperSize.a4,
+          paperSize: BillPaperSize.compact,
           buttonLabel: 'Export / Print / Share',
         ),
         const SizedBox(height: AppSpacing.sm),

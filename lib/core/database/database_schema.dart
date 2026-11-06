@@ -34,6 +34,8 @@ abstract class DatabaseSchema {
         bill_discount_value TEXT,
         bill_discount_amount_paisa INTEGER NOT NULL,
         final_payable_paisa INTEGER NOT NULL,
+        previous_remaining_paisa INTEGER NOT NULL DEFAULT 0,
+        advance_payment_paisa INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'completed'
@@ -97,6 +99,18 @@ abstract class DatabaseSchema {
       billsTable,
       'status',
       "TEXT NOT NULL DEFAULT 'completed'",
+    );
+    await _ensureColumn(
+      db,
+      billsTable,
+      'previous_remaining_paisa',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _ensureColumn(
+      db,
+      billsTable,
+      'advance_payment_paisa',
+      'INTEGER NOT NULL DEFAULT 0',
     );
   }
 

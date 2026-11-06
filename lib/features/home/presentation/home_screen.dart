@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_dimensions.dart';
-import '../../bills/presentation/new_bill_screen.dart';
 import 'widgets/dashboard_primary_actions.dart';
 import 'widgets/dashboard_quick_access.dart';
 import 'widgets/home_header.dart';
@@ -50,11 +49,7 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(height: AppSpacing.sm),
                           DashboardPrimaryActions(
                             onNewBill: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const NewBillScreen(),
-                                ),
-                              );
+                              context.goNamed(RouteNames.newBillName);
                             },
                             onHistory: () =>
                                 context.goNamed(RouteNames.historyName),
@@ -68,13 +63,8 @@ class HomeScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           RecentBillsEmptyCard(
-                            onNewBill: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const NewBillScreen(),
-                                ),
-                              );
-                            },
+                            onNewBill: () =>
+                                context.goNamed(RouteNames.newBillName),
                           ),
                         ]),
                       ),

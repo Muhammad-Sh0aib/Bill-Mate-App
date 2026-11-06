@@ -62,7 +62,22 @@ class BillFileService {
     return true;
   }
 
-  Future<ShareResult> shareFiles(List<XFile> files, {required String title}) {
+  Future<ShareResult> shareFiles(
+    List<XFile> files, {
+    required String title,
+  }) async {
+    if (files.isEmpty) {
+      throw ArgumentError.value(
+        files,
+        'files',
+        'At least one file is required.',
+      );
+    }
+    for (final file in files) {
+      if (await file.length() == 0) {
+        throw StateError('The generated bill file is empty.');
+      }
+    }
     return SharePlus.instance.share(
       ShareParams(
         files: files,
@@ -100,6 +115,26 @@ class BillFileService {
     required String fileName,
     required String mimeType,
   }) {
+    if (bytes.isEmpty) {
+      throw StateError('The generated bill file is empty.');
+    }
+    if (mimeType == 'application/pdf' &&
+        !(bytes.length >= 5 &&
+            bytes[0] == 0x25 &&
+            bytes[1] == 0x50 &&
+            bytes[2] == 0x44 &&
+            bytes[3] == 0x46 &&
+            bytes[4] == 0x2d)) {
+      throw const FormatException('The generated PDF is invalid.');
+    }
+    if (mimeType == 'image/jpeg' &&
+        !(bytes.length >= 4 &&
+            bytes[0] == 0xff &&
+            bytes[1] == 0xd8 &&
+            bytes[bytes.length - 2] == 0xff &&
+            bytes.last == 0xd9)) {
+      throw const FormatException('The generated JPEG is invalid.');
+    }
     return XFile.fromData(bytes, name: fileName, mimeType: mimeType);
   }
 }

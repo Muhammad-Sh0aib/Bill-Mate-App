@@ -2,6 +2,7 @@ import 'package:pdf/pdf.dart';
 
 import '../../../app/config/app_config.dart';
 import '../../bills/data/bill_repository.dart';
+import '../../bills/domain/bill_amount.dart';
 import '../../bills/domain/bill_discount.dart';
 import '../../bills/domain/bill_draft.dart';
 import '../../bills/domain/bill_item.dart';
@@ -34,7 +35,12 @@ class BillDocumentData {
     required this.billNumber,
     required List<BillItem> items,
     required this.billDiscount,
-  }) : items = List.unmodifiable(items);
+    BigInt? previousRemainingInPaisa,
+    BigInt? advancePaymentInPaisa,
+    this.paymentValidationMessage,
+  }) : items = List.unmodifiable(items),
+       previousRemainingInPaisa = previousRemainingInPaisa ?? BigInt.zero,
+       advancePaymentInPaisa = advancePaymentInPaisa ?? BigInt.zero;
 
   factory BillDocumentData.fromDraft(BillDraft draft) {
     return BillDocumentData(
@@ -51,6 +57,20 @@ class BillDocumentData {
       billNumber: null,
       items: draft.items,
       billDiscount: draft.billDiscount,
+      previousRemainingInPaisa: BigInt.from(
+        BillAmount.parsePaisa(draft.previousRemainingInput) ?? 0,
+      ),
+      advancePaymentInPaisa: BigInt.from(
+        BillAmount.parsePaisa(draft.advancePaymentInput) ?? 0,
+      ),
+      paymentValidationMessage:
+          (draft.previousRemainingInput.trim().isNotEmpty &&
+              BillAmount.parsePaisa(draft.previousRemainingInput) == null)
+          ? 'Enter a valid Previous Remaining amount.'
+          : (draft.advancePaymentInput.trim().isNotEmpty &&
+                BillAmount.parsePaisa(draft.advancePaymentInput) == null)
+          ? 'Enter a valid Advance Payment amount.'
+          : null,
     );
   }
 
@@ -65,6 +85,8 @@ class BillDocumentData {
       billNumber: bill.billNumber,
       items: bill.items,
       billDiscount: bill.billDiscount,
+      previousRemainingInPaisa: bill.previousRemainingInPaisa,
+      advancePaymentInPaisa: bill.advancePaymentInPaisa,
     );
   }
 
@@ -77,13 +99,19 @@ class BillDocumentData {
   final String? billNumber;
   final List<BillItem> items;
   final BillDiscount billDiscount;
+  final BigInt previousRemainingInPaisa;
+  final BigInt advancePaymentInPaisa;
+  final String? paymentValidationMessage;
 
   BillTotals get totals => const BillTotalsCalculator().calculate(
     items: items,
     billDiscount: billDiscount,
+    previousRemainingPaisa: previousRemainingInPaisa.toInt(),
+    advancePaymentPaisa: advancePaymentInPaisa.toInt(),
   );
 
   String? get exportValidationMessage {
+    if (paymentValidationMessage != null) return paymentValidationMessage;
     if (customerName.trim().isEmpty) {
       return 'Enter a customer name before exporting this bill.';
     }

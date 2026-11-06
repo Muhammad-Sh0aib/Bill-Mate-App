@@ -18,7 +18,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Create New Bill').first);
     await tester.pumpAndSettle();
-    print('texts after tap: ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data ?? '').toList()}');
+    print(
+      'texts after tap: ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data ?? '').toList()}',
+    );
+    await tester.dragUntilVisible(
+      find.text('Bill Items'),
+      find.byType(ListView).first,
+      const Offset(0, -300),
+    );
     expect(find.text('Bill Items'), findsOneWidget);
   });
 }

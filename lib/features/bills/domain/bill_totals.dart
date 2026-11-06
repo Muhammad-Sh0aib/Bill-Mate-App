@@ -20,6 +20,9 @@ class BillTotals {
     required this.subtotalAfterItemDiscountsInPaisa,
     required this.billDiscountInPaisa,
     required this.finalPayableInPaisa,
+    required this.previousRemainingInPaisa,
+    required this.advancePaymentInPaisa,
+    required this.netAmountDueInPaisa,
     required this.itemTotals,
     required this.isValid,
     required this.validationSummary,
@@ -31,6 +34,9 @@ class BillTotals {
   final BigInt subtotalAfterItemDiscountsInPaisa;
   final BigInt billDiscountInPaisa;
   final BigInt finalPayableInPaisa;
+  final BigInt previousRemainingInPaisa;
+  final BigInt advancePaymentInPaisa;
+  final BigInt netAmountDueInPaisa;
   final List<BillItemTotals> itemTotals;
   final bool isValid;
   final List<String> validationSummary;
@@ -43,6 +49,8 @@ class BillTotalsCalculator {
   BillTotals calculate({
     required List<BillItem> items,
     required BillDiscount billDiscount,
+    int previousRemainingPaisa = 0,
+    int advancePaymentPaisa = 0,
   }) {
     final itemTotals = <BillItemTotals>[];
     final validationSummary = <String>[];
@@ -111,6 +119,20 @@ class BillTotalsCalculator {
     }
 
     final finalPayable = subtotalAfterItemDiscounts - finalBillDiscount;
+    final previousRemaining = BigInt.from(previousRemainingPaisa);
+    final advancePayment = BigInt.from(advancePaymentPaisa);
+    final netAmountDue = finalPayable + previousRemaining - advancePayment;
+    var paymentsAreValid = true;
+    if (previousRemaining.isNegative || advancePayment.isNegative) {
+      paymentsAreValid = false;
+      validationSummary.add('Payment amounts cannot be negative.');
+    }
+    if (advancePayment > finalPayable) {
+      paymentsAreValid = false;
+      validationSummary.add(
+        'Advance payment cannot exceed the bill payable amount.',
+      );
+    }
 
     return BillTotals(
       originalSubtotalInPaisa: originalSubtotal,
@@ -118,9 +140,15 @@ class BillTotalsCalculator {
       subtotalAfterItemDiscountsInPaisa: subtotalAfterItemDiscounts,
       billDiscountInPaisa: finalBillDiscount,
       finalPayableInPaisa: finalPayable,
+      previousRemainingInPaisa: previousRemaining,
+      advancePaymentInPaisa: advancePayment,
+      netAmountDueInPaisa: netAmountDue,
       itemTotals: itemTotals,
       isValid:
-          itemsAreValid && billDiscountIsValid && validationSummary.isEmpty,
+          itemsAreValid &&
+          billDiscountIsValid &&
+          paymentsAreValid &&
+          validationSummary.isEmpty,
       validationSummary: validationSummary,
       billDiscount: billDiscount,
     );

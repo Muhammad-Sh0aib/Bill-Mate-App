@@ -54,7 +54,7 @@ class BillPreviewScreen extends ConsumerStatefulWidget {
 }
 
 class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
-  BillPreviewPaperSize _paperSize = BillPreviewPaperSize.a4;
+  BillPreviewPaperSize _paperSize = BillPreviewPaperSize.compact;
   BillRecord? _loadedBill;
   bool _isLoading = false;
   String? _loadError;
@@ -159,6 +159,12 @@ class _BillPreviewScreenState extends ConsumerState<BillPreviewScreen> {
     final totals = const BillTotalsCalculator().calculate(
       items: items,
       billDiscount: billDiscount,
+      previousRemainingPaisa:
+          savedBill?.previousRemainingInPaisa.toInt() ??
+          (BillAmount.parsePaisa(draft.previousRemainingInput) ?? 0),
+      advancePaymentPaisa:
+          savedBill?.advancePaymentInPaisa.toInt() ??
+          (BillAmount.parsePaisa(draft.advancePaymentInput) ?? 0),
     );
 
     final companyName =
@@ -253,16 +259,17 @@ class _PaperSizeSelector extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: Theme.of(context).colorScheme.outline),
         ),
         child: DropdownButton<BillPreviewPaperSize>(
           value: value,
           isDense: true,
-          dropdownColor: AppColors.surfaceLight,
-          iconEnabledColor: AppColors.textOnPrimary,
+          dropdownColor: Theme.of(context).colorScheme.surface,
+          iconEnabledColor: Theme.of(context).colorScheme.onSurface,
           style: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.textOnPrimary,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
           items: BillPreviewPaperSize.values
               .map(
@@ -304,14 +311,22 @@ class _PaperDocument extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = paperSize.size.width;
     final tableWidth = width - 56;
+    final hasDiscounts =
+        totals.totalItemDiscountInPaisa > BigInt.zero ||
+        totals.billDiscountInPaisa > BigInt.zero;
+    final hasPaymentAdjustments =
+        totals.previousRemainingInPaisa > BigInt.zero ||
+        totals.advancePaymentInPaisa > BigInt.zero;
     final discountRows = <_SummaryRowData>[];
 
-    discountRows.add(
-      _SummaryRowData(
-        label: 'Original Subtotal',
-        value: BillAmount.formatPaisaBigInt(totals.originalSubtotalInPaisa),
-      ),
-    );
+    if (hasDiscounts) {
+      discountRows.add(
+        _SummaryRowData(
+          label: 'Original Subtotal',
+          value: BillAmount.formatPaisaBigInt(totals.originalSubtotalInPaisa),
+        ),
+      );
+    }
 
     if (totals.totalItemDiscountInPaisa > BigInt.zero) {
       discountRows.add(
@@ -324,19 +339,21 @@ class _PaperDocument extends StatelessWidget {
       );
     }
 
-    discountRows.add(
-      _SummaryRowData(
-        label: 'Subtotal After Discounts',
-        value: BillAmount.formatPaisaBigInt(
-          totals.subtotalAfterItemDiscountsInPaisa,
+    if (totals.totalItemDiscountInPaisa > BigInt.zero) {
+      discountRows.add(
+        _SummaryRowData(
+          label: 'Subtotal After Item Discounts',
+          value: BillAmount.formatPaisaBigInt(
+            totals.subtotalAfterItemDiscountsInPaisa,
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     if (totals.billDiscountInPaisa > BigInt.zero) {
       final label = totals.billDiscount.type == DiscountType.percentage
           ? 'Overall Discount (${_formatPercentageLabel(totals.billDiscount)})'
-          : 'Overall Discount';
+          : 'Overall Discount (${totals.billDiscount.fixedInput} PKR fixed)';
       discountRows.add(
         _SummaryRowData(
           label: label,
@@ -349,7 +366,6 @@ class _PaperDocument extends StatelessWidget {
     final finalPayable = BillAmount.formatPaisaBigInt(
       totals.finalPayableInPaisa,
     );
-
     return Container(
       width: width,
       padding: const EdgeInsets.fromLTRB(28, 28, 28, 20),
@@ -511,6 +527,7 @@ class _PaperDocument extends StatelessWidget {
                         : null;
                     final discountAmount =
                         itemTotals?.discountAmountInPaisa ?? BigInt.zero;
+                    final hasDiscount = discountAmount > BigInt.zero;
                     final itemValue =
                         itemTotals?.originalAmountInPaisa ??
                         BigInt.from(item.amountInPaisa ?? 0);
@@ -542,18 +559,18 @@ class _PaperDocument extends StatelessWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              if (discountAmount > BigInt.zero)
+                              if (hasDiscount)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2),
                                   child: Text(
-                                    'Item Discount: -${BillAmount.formatPaisaBigInt(discountAmount)}',
+                                    'Item Discount (${_itemDiscountLabel(item.discount)}): -${BillAmount.formatPaisaBigInt(discountAmount)}',
                                     style: const TextStyle(
                                       fontSize: 11,
                                       color: AppColors.success,
                                     ),
                                   ),
                                 ),
-                              if (discountAmount > BigInt.zero)
+                              if (hasDiscount)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 1),
                                   child: Text(
@@ -599,12 +616,42 @@ class _PaperDocument extends StatelessWidget {
                         negative: row.negative,
                       ),
                     const Divider(height: 18, color: AppColors.divider),
-                    _SummaryRow(
-                      label: 'FINAL PAYABLE',
-                      value: finalPayable,
-                      negative: false,
-                      emphasized: true,
-                    ),
+                    if (hasPaymentAdjustments)
+                      _SummaryRow(
+                        label: 'Bill Payable',
+                        value: finalPayable,
+                        emphasized: true,
+                      ),
+                    if (hasPaymentAdjustments &&
+                        totals.previousRemainingInPaisa > BigInt.zero)
+                      _SummaryRow(
+                        label: 'Previous Remaining',
+                        value: BillAmount.formatPaisaBigInt(
+                          totals.previousRemainingInPaisa,
+                        ),
+                      ),
+                    if (hasPaymentAdjustments &&
+                        totals.advancePaymentInPaisa > BigInt.zero)
+                      _SummaryRow(
+                        label: 'Advance Payment',
+                        value:
+                            '-${BillAmount.formatPaisaBigInt(totals.advancePaymentInPaisa)}',
+                        negative: true,
+                      ),
+                    if (!hasPaymentAdjustments ||
+                        !totals.netAmountDueInPaisa.isNegative)
+                      _SummaryRow(
+                        label: hasPaymentAdjustments
+                            ? 'NET AMOUNT DUE'
+                            : 'FINAL PAYABLE',
+                        value: hasPaymentAdjustments
+                            ? BillAmount.formatPaisaBigInt(
+                                totals.netAmountDueInPaisa,
+                              )
+                            : finalPayable,
+                        negative: false,
+                        emphasized: true,
+                      ),
                   ],
                 ),
               ),
@@ -623,20 +670,26 @@ class _PaperDocument extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Authorized Signature',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+                Expanded(
+                  child: Text(
+                    'Authorized Signature',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
-                Text(
-                  'Received By / Signature',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+                SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    'Received By / Signature',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ],
@@ -654,6 +707,15 @@ class _PaperDocument extends StatelessWidget {
     final raw = discount.percentageInput.trim();
     if (raw.isEmpty) return '0%';
     return '$raw%';
+  }
+
+  static String _itemDiscountLabel(BillDiscount discount) {
+    return switch (discount.type) {
+      DiscountType.fixed => '${discount.fixedInput.trim()} PKR fixed',
+      DiscountType.percentage =>
+        '${discount.percentageInput.trim()}% percentage',
+      DiscountType.none => '',
+    };
   }
 }
 

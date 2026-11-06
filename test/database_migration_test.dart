@@ -38,11 +38,35 @@ void main() {
     );
     addTearDown(db.close);
 
+    await db.insert('bills', {
+      'id': 'legacy-bill',
+      'customer_name': 'Legacy customer',
+      'bill_date': '2026-01-01',
+      'company_name_snapshot': 'Legacy workshop',
+      'company_phone_snapshot': '0300',
+      'original_subtotal_paisa': 10000,
+      'total_item_discounts_paisa': 0,
+      'subtotal_after_item_discounts_paisa': 10000,
+      'bill_discount_type': 'none',
+      'bill_discount_amount_paisa': 0,
+      'final_payable_paisa': 10000,
+      'created_at': '2026-01-01T00:00:00.000Z',
+      'updated_at': '2026-01-01T00:00:00.000Z',
+    });
+
     await DatabaseSchema.upgrade(db);
 
     final columns = await db.rawQuery('PRAGMA table_info(bills)');
     final columnNames = columns.map((column) => column['name']).toSet();
-    expect(columnNames, containsAll(['bill_number', 'status']));
+    expect(
+      columnNames,
+      containsAll([
+        'bill_number',
+        'status',
+        'previous_remaining_paisa',
+        'advance_payment_paisa',
+      ]),
+    );
     expect(
       await db.rawQuery(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -50,5 +74,12 @@ void main() {
       ),
       hasLength(1),
     );
+    final migratedBill = (await db.query(
+      'bills',
+      where: 'id = ?',
+      whereArgs: ['legacy-bill'],
+    )).single;
+    expect(migratedBill['previous_remaining_paisa'], 0);
+    expect(migratedBill['advance_payment_paisa'], 0);
   });
 }

@@ -133,6 +133,7 @@ void main() {
       await tester.tap(find.text('Update Bill'));
       await tester.pumpAndSettle();
 
+      expect(find.text('Bill Preview'), findsOneWidget);
       expect(find.text('Updated Phase Eight Customer'), findsOneWidget);
       final postEdit = (
         count: await repository.countCompletedBills(),
@@ -144,6 +145,8 @@ void main() {
       expect(updated?.items.single.amountInput, '100.00');
       expect(updated?.billDiscount.percentageInput, '10');
 
+      AppRouter.router.goNamed(RouteNames.historyName);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Updated Phase Eight Customer'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Delete bill'));
@@ -228,6 +231,21 @@ void main() {
     expect(await repository.countCompletedBills(), 1);
     final bill = await repository.searchBills('New Workflow Customer');
     expect(bill.single.items.single.description, 'New repair');
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextFormField>(find.byType(TextFormField).first)
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(
+      find.text('No items yet. Add a service or repair entry.'),
+      findsOneWidget,
+    );
+    expect(find.text('Save Bill'), findsOneWidget);
   });
 
   testWidgets('preview draft back returns to the bill editor', (tester) async {
@@ -316,6 +334,8 @@ class _MemoryBillRepository extends BillRepository {
     required BillDiscount billDiscount,
     required BillTotals totals,
     String? billNumber,
+    int previousRemainingPaisa = 0,
+    int advancePaymentPaisa = 0,
   }) async {
     final oldBill = _bills.where((bill) => bill.id == billId).firstOrNull;
     final now = DateTime.now();
@@ -334,6 +354,8 @@ class _MemoryBillRepository extends BillRepository {
       billDiscount: billDiscount,
       billDiscountAmountInPaisa: totals.billDiscountInPaisa,
       finalPayableInPaisa: totals.finalPayableInPaisa,
+      previousRemainingInPaisa: totals.previousRemainingInPaisa,
+      advancePaymentInPaisa: totals.advancePaymentInPaisa,
       createdAt: oldBill?.createdAt ?? now,
       updatedAt: now,
       items: List.unmodifiable(items),

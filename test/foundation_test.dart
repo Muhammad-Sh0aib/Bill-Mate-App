@@ -47,7 +47,7 @@ void main() {
     });
 
     test('database version includes the saved-bill migration', () {
-      expect(AppConstants.databaseVersion, equals(2));
+      expect(AppConstants.databaseVersion, equals(3));
     });
 
     test('maxBillHistory is 7 as per roadmap', () {

@@ -2,6 +2,7 @@ import 'package:bill_mate/app/bill_mate_app.dart';
 import 'package:bill_mate/app/router/app_router.dart';
 import 'package:bill_mate/app/router/route_names.dart';
 import 'package:bill_mate/features/bills/application/bill_draft_provider.dart';
+import 'package:bill_mate/features/bills/application/bill_repository_provider.dart';
 import 'package:bill_mate/features/bills/domain/bill_amount.dart';
 import 'package:bill_mate/features/bills/domain/bill_calculations.dart';
 import 'package:bill_mate/features/bills/domain/bill_item.dart';
@@ -10,10 +11,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:bill_mate/features/company_settings/application/company_settings_providers.dart';
+
+import 'support/in_memory_repositories.dart';
 
 Future<void> _openNewBill(WidgetTester tester) async {
   AppRouter.reset(initialLocation: RouteNames.newBill);
-  await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        billRepositoryProvider.overrideWithValue(EmptyBillRepository()),
+        companySettingsRepositoryProvider.overrideWithValue(
+          MemoryCompanySettingsRepository(),
+        ),
+      ],
+      child: const BillMateApp(),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -205,6 +219,7 @@ void main() {
     ) async {
       await _openNewBill(tester);
 
+      await _scrollToAddItem(tester);
       expect(
         find.text('No items yet. Add a service or repair entry.'),
         findsOneWidget,
@@ -236,7 +251,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Rs. 1,750.50'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('bill-subtotal'))).data,
+        'Rs. 1,750.50',
+      );
       expect(find.text('1.'), findsOneWidget);
       expect(find.text('2.'), findsOneWidget);
       expect(
@@ -316,7 +334,10 @@ void main() {
               .text,
           'Part replacement',
         );
-        expect(find.text('Rs. 200.00'), findsOneWidget);
+        expect(
+          tester.widget<Text>(find.byKey(const ValueKey('bill-subtotal'))).data,
+          'Rs. 200.00',
+        );
       },
     );
 

@@ -2,20 +2,51 @@ import 'package:bill_mate/app/bill_mate_app.dart';
 import 'package:bill_mate/app/router/app_router.dart';
 import 'package:bill_mate/app/router/route_names.dart';
 import 'package:bill_mate/features/bills/application/bill_draft_provider.dart';
+import 'package:bill_mate/features/bills/application/bill_repository_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:bill_mate/features/bills/domain/bill_discount.dart';
 import 'package:bill_mate/features/bills/domain/bill_item.dart';
 import 'package:bill_mate/features/bills/domain/bill_totals.dart';
+import 'package:bill_mate/core/utils/decimal_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bill_mate/features/company_settings/application/company_settings_providers.dart';
+
+import 'support/in_memory_repositories.dart';
 
 void main() {
   setUp(() {
     databaseFactory = databaseFactoryFfi;
     AppRouter.reset();
     SharedPreferences.setMockInitialValues({});
+  });
+
+  test('decimal formatter preserves cursor and limits precision to two', () {
+    final formatter = DecimalInputFormatter();
+    const oldValue = TextEditingValue(
+      text: '12500.50',
+      selection: TextSelection.collapsed(offset: 5),
+    );
+    final invalid = formatter.formatEditUpdate(
+      oldValue,
+      const TextEditingValue(
+        text: '12500.501',
+        selection: TextSelection.collapsed(offset: 9),
+      ),
+    );
+    expect(invalid, oldValue);
+
+    final edited = formatter.formatEditUpdate(
+      oldValue,
+      const TextEditingValue(
+        text: '120500.50',
+        selection: TextSelection.collapsed(offset: 3),
+      ),
+    );
+    expect(edited.text, '120500.50');
+    expect(edited.selection.baseOffset, 3);
   });
 
   group('BillDiscount', () {
@@ -167,6 +198,54 @@ void main() {
       expect(totals.billDiscountInPaisa, BigInt.one);
       expect(totals.finalPayableInPaisa, BigInt.zero);
     });
+
+    test('calculates payment adjustments separately from discounts', () {
+      final totals = calculator.calculate(
+        items: [
+          BillItem(
+            id: 'repair',
+            description: 'Repair',
+            amountInput: '17000',
+            discount: const BillDiscount(
+              type: DiscountType.fixed,
+              fixedInput: '1200',
+            ),
+          ),
+        ],
+        billDiscount: const BillDiscount(
+          type: DiscountType.percentage,
+          percentageInput: '5',
+        ),
+        previousRemainingPaisa: 200000,
+        advancePaymentPaisa: 500000,
+      );
+
+      expect(totals.originalSubtotalInPaisa, BigInt.from(1700000));
+      expect(totals.totalItemDiscountInPaisa, BigInt.from(120000));
+      expect(totals.subtotalAfterItemDiscountsInPaisa, BigInt.from(1580000));
+      expect(totals.billDiscountInPaisa, BigInt.from(79000));
+      expect(totals.finalPayableInPaisa, BigInt.from(1501000));
+      expect(totals.previousRemainingInPaisa, BigInt.from(200000));
+      expect(totals.advancePaymentInPaisa, BigInt.from(500000));
+      expect(totals.netAmountDueInPaisa, BigInt.from(1201000));
+      expect(totals.isValid, isTrue);
+    });
+
+    test('rejects advance payments greater than current bill payable', () {
+      final totals = calculator.calculate(
+        items: [
+          BillItem(id: 'repair', description: 'Repair', amountInput: '100'),
+        ],
+        billDiscount: const BillDiscount(),
+        advancePaymentPaisa: 10001,
+      );
+
+      expect(totals.isValid, isFalse);
+      expect(
+        totals.validationSummary,
+        contains('Advance payment cannot exceed the bill payable amount.'),
+      );
+    });
   });
 
   test('bill discounts mark an otherwise empty draft as changed', () {
@@ -187,7 +266,17 @@ void main() {
     tester,
   ) async {
     AppRouter.reset(initialLocation: RouteNames.newBill);
-    await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          billRepositoryProvider.overrideWithValue(EmptyBillRepository()),
+          companySettingsRepositoryProvider.overrideWithValue(
+            MemoryCompanySettingsRepository(),
+          ),
+        ],
+        child: const BillMateApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     for (
@@ -211,6 +300,16 @@ void main() {
       listen: false,
     );
     final item = container.read(billDraftProvider).items.single;
+    final descriptionField = tester.widget<TextField>(
+      find.byKey(ValueKey('bill-item-description-${item.id}')),
+    );
+    final amountField = tester.widget<TextField>(
+      find.byKey(ValueKey('bill-item-amount-${item.id}')),
+    );
+    expect(descriptionField.textDirection, TextDirection.ltr);
+    expect(descriptionField.textAlign, TextAlign.left);
+    expect(amountField.textDirection, TextDirection.ltr);
+
     container.read(billDraftProvider.notifier)
       ..updateItemDescription(item.id, 'Workshop repair')
       ..updateItemAmount(item.id, '1000');
@@ -264,5 +363,22 @@ void main() {
     expect(tester.widget<TextFormField>(discountField).initialValue, '10');
     expect(find.text('Rs. 810.00'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.dragUntilVisible(
+      find.text('Payment Details (Optional)'),
+      find.byType(ListView).first,
+      const Offset(0, -350),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(
+              of: find.byKey(const ValueKey('previous-remaining-input')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .textDirection,
+      TextDirection.ltr,
+    );
   });
 }

@@ -14,6 +14,10 @@ import 'package:bill_mate/features/home/presentation/widgets/dashboard_quick_acc
 import 'package:bill_mate/features/home/presentation/widgets/recent_bills_empty_card.dart';
 import 'package:bill_mate/features/home/presentation/widgets/workshop_status_strip.dart';
 import 'package:bill_mate/features/bills/application/bill_repository_provider.dart';
+import 'package:bill_mate/features/bills/application/bill_history_refresh_provider.dart';
+import 'package:bill_mate/features/bills/data/bill_repository.dart';
+import 'package:bill_mate/features/bills/domain/bill_discount.dart';
+import 'package:bill_mate/features/bills/domain/bill_item.dart';
 
 import 'support/in_memory_repositories.dart';
 
@@ -34,8 +38,43 @@ void main() {
   });
 
   group('Phase 3 — Home Dashboard UI & Structure', () {
+    testWidgets('recent bills display repository records and refresh', (
+      tester,
+    ) async {
+      final repository = _RecentBillsRepository([
+        _billRecord('one', 'First customer', DateTime(2026, 11, 1)),
+        _billRecord('two', 'Second customer', DateTime(2026, 11, 2)),
+        _billRecord('three', 'Third customer', DateTime(2026, 11, 3)),
+      ]);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [billRepositoryProvider.overrideWithValue(repository)],
+          child: MaterialApp(
+            home: Scaffold(body: RecentBillsEmptyCard(onNewBill: () {})),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('First customer'), findsOneWidget);
+      expect(find.text('Second customer'), findsOneWidget);
+      expect(find.text('Third customer'), findsOneWidget);
+      expect(find.text('No bills yet'), findsNothing);
+
+      repository.records.removeWhere((bill) => bill.id == 'two');
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(RecentBillsEmptyCard)),
+      );
+      container.read(billHistoryRefreshProvider.notifier).refresh();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Second customer'), findsNothing);
+      expect(find.text('First customer'), findsOneWidget);
+      expect(find.text('Third customer'), findsOneWidget);
+    });
+
     testWidgets('Dashboard renders all core sections', (tester) async {
-      await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+      await tester.pumpWidget(_buildTestApp());
       await tester.pumpAndSettle();
 
       // 1. Header with branding
@@ -80,7 +119,7 @@ void main() {
     testWidgets('Primary Create New Bill action navigates to New Bill screen', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+      await tester.pumpWidget(_buildTestApp());
       await tester.pumpAndSettle();
 
       // Tap the primary action button in DashboardPrimaryActions
@@ -127,7 +166,7 @@ void main() {
     testWidgets('Workshop identity card tap navigates to Settings screen', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+      await tester.pumpWidget(_buildTestApp());
       await tester.pumpAndSettle();
 
       await tester.tap(find.byType(WorkshopIdentityCard));
@@ -149,7 +188,7 @@ void main() {
     testWidgets('Header settings button navigates to Settings screen', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+      await tester.pumpWidget(_buildTestApp());
       await tester.pumpAndSettle();
 
       await tester.tap(
@@ -166,7 +205,7 @@ void main() {
     testWidgets('Recent bills empty state CTA triggers New Bill navigation', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+      await tester.pumpWidget(_buildTestApp());
       await tester.pumpAndSettle();
 
       final createBillAction = find.descendant(
@@ -206,7 +245,7 @@ void main() {
           tester.view.resetDevicePixelRatio();
         });
 
-        await tester.pumpWidget(const ProviderScope(child: BillMateApp()));
+        await tester.pumpWidget(_buildTestApp());
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
@@ -215,4 +254,37 @@ void main() {
       },
     );
   });
+}
+
+class _RecentBillsRepository extends BillRepository {
+  _RecentBillsRepository(this.records);
+
+  final List<BillRecord> records;
+
+  @override
+  Future<List<BillRecord>> listRecentBills({int limit = 7}) async =>
+      records.take(limit).toList();
+}
+
+BillRecord _billRecord(String id, String customer, DateTime date) {
+  return BillRecord(
+    id: id,
+    billNumber: null,
+    customerName: customer,
+    billDate: date,
+    companyNameSnapshot: 'Workshop',
+    companyPhoneSnapshot: '0300',
+    companyAddressSnapshot: null,
+    originalSubtotalInPaisa: BigInt.from(100000),
+    totalItemDiscountInPaisa: BigInt.zero,
+    subtotalAfterItemDiscountsInPaisa: BigInt.from(100000),
+    billDiscount: const BillDiscount(),
+    billDiscountAmountInPaisa: BigInt.zero,
+    finalPayableInPaisa: BigInt.from(100000),
+    createdAt: date,
+    updatedAt: date,
+    items: [
+      BillItem(id: '$id-item', description: 'Repair', amountInput: '1000'),
+    ],
+  );
 }

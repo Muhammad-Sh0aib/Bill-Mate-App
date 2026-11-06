@@ -10,7 +10,7 @@ abstract class AppConstants {
   static const String databaseName = 'bill_mate.db';
 
   /// Current database schema version.
-  static const int databaseVersion = 2;
+  static const int databaseVersion = 3;
 
   // ── Bill limits ───────────────────────────────────────────────
   /// Maximum number of line items per bill.

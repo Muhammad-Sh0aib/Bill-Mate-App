@@ -115,6 +115,34 @@ class BillDraftController extends Notifier<BillDraft> {
     );
   }
 
+  void updatePreviousRemaining(String amountInput) {
+    if (state.previousRemainingInput == amountInput) return;
+    state = state.copyWith(
+      previousRemainingInput: amountInput,
+      hasUnsavedChanges: _hasDraftChanges(
+        customerName: state.customerName,
+        billDate: state.billDate,
+        items: state.items,
+        billDiscount: state.billDiscount,
+        previousRemainingInput: amountInput,
+      ),
+    );
+  }
+
+  void updateAdvancePayment(String amountInput) {
+    if (state.advancePaymentInput == amountInput) return;
+    state = state.copyWith(
+      advancePaymentInput: amountInput,
+      hasUnsavedChanges: _hasDraftChanges(
+        customerName: state.customerName,
+        billDate: state.billDate,
+        items: state.items,
+        billDiscount: state.billDiscount,
+        advancePaymentInput: amountInput,
+      ),
+    );
+  }
+
   void deleteItem(String itemId) {
     final items = state.items.where((item) => item.id != itemId).toList();
     if (items.length == state.items.length) return;
@@ -156,11 +184,15 @@ class BillDraftController extends Notifier<BillDraft> {
     required DateTime billDate,
     required List<BillItem> items,
     required BillDiscount billDiscount,
+    String? previousRemainingInput,
+    String? advancePaymentInput,
   }) {
     return customerName.isNotEmpty ||
         !_sameDate(billDate, _initialDate) ||
         items.isNotEmpty ||
-        !billDiscount.isNone;
+        !billDiscount.isNone ||
+        (previousRemainingInput ?? state.previousRemainingInput).isNotEmpty ||
+        (advancePaymentInput ?? state.advancePaymentInput).isNotEmpty;
   }
 
   void updateCompanySnapshot(CompanyDetails details) {
@@ -206,8 +238,24 @@ class BillDraftController extends Notifier<BillDraft> {
       createdAt: bill.createdAt,
       hasUnsavedChanges: false,
       billDiscount: bill.billDiscount,
+      previousRemainingInput: bill.previousRemainingInPaisa == BigInt.zero
+          ? ''
+          : _amountInputFromPaisa(bill.previousRemainingInPaisa),
+      advancePaymentInput: bill.advancePaymentInPaisa == BigInt.zero
+          ? ''
+          : _amountInputFromPaisa(bill.advancePaymentInPaisa),
       items: bill.items,
     );
+  }
+
+  void markSaved() {
+    state = state.copyWith(hasUnsavedChanges: false);
+  }
+
+  String _amountInputFromPaisa(BigInt paisa) {
+    final rupees = paisa ~/ BigInt.from(100);
+    final remainder = (paisa % BigInt.from(100)).toString().padLeft(2, '0');
+    return '$rupees.$remainder';
   }
 
   BillDraft _newDraft(DateTime date, CompanyDetails company) {

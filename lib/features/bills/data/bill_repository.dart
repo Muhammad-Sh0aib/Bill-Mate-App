@@ -6,7 +6,7 @@ import '../domain/bill_item.dart';
 import '../domain/bill_totals.dart';
 
 class BillRecord {
-  const BillRecord({
+  BillRecord({
     required this.id,
     required this.billNumber,
     required this.customerName,
@@ -23,7 +23,10 @@ class BillRecord {
     required this.createdAt,
     required this.updatedAt,
     required this.items,
-  });
+    BigInt? previousRemainingInPaisa,
+    BigInt? advancePaymentInPaisa,
+  }) : previousRemainingInPaisa = previousRemainingInPaisa ?? BigInt.zero,
+       advancePaymentInPaisa = advancePaymentInPaisa ?? BigInt.zero;
 
   final String id;
   final String? billNumber;
@@ -38,6 +41,8 @@ class BillRecord {
   final BillDiscount billDiscount;
   final BigInt billDiscountAmountInPaisa;
   final BigInt finalPayableInPaisa;
+  final BigInt previousRemainingInPaisa;
+  final BigInt advancePaymentInPaisa;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<BillItem> items;
@@ -60,6 +65,8 @@ class BillRepository {
     required BillDiscount billDiscount,
     required BillTotals totals,
     String? billNumber,
+    int previousRemainingPaisa = 0,
+    int advancePaymentPaisa = 0,
   }) async {
     final db = await _databaseService.database;
     final now = DateTime.now().toUtc();
@@ -81,6 +88,8 @@ class BillRepository {
       'bill_discount_value': _discountValueForStorage(billDiscount),
       'bill_discount_amount_paisa': totals.billDiscountInPaisa.toInt(),
       'final_payable_paisa': totals.finalPayableInPaisa.toInt(),
+      'previous_remaining_paisa': previousRemainingPaisa,
+      'advance_payment_paisa': advancePaymentPaisa,
       'updated_at': now.toIso8601String(),
       'status': 'completed',
     };
@@ -281,6 +290,12 @@ class BillRepository {
         row['bill_discount_amount_paisa'] as int? ?? 0,
       ),
       finalPayableInPaisa: BigInt.from(row['final_payable_paisa'] as int? ?? 0),
+      previousRemainingInPaisa: BigInt.from(
+        row['previous_remaining_paisa'] as int? ?? 0,
+      ),
+      advancePaymentInPaisa: BigInt.from(
+        row['advance_payment_paisa'] as int? ?? 0,
+      ),
       createdAt: DateTime.parse(row['created_at'] as String),
       updatedAt: DateTime.parse(row['updated_at'] as String),
       items: items,

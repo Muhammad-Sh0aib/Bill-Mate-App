@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_dimensions.dart';
 import '../../../app/theme/app_text_styles.dart';
+import '../../../core/utils/decimal_input_formatter.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/app_inline_message.dart';
 import '../../../core/widgets/app_section_header.dart';
@@ -24,31 +25,20 @@ class BillItemsSection extends ConsumerWidget {
     final totals = const BillTotalsCalculator().calculate(
       items: draft.items,
       billDiscount: draft.billDiscount,
+      previousRemainingPaisa:
+          BillAmount.parsePaisa(draft.previousRemainingInput) ?? 0,
+      advancePaymentPaisa:
+          BillAmount.parsePaisa(draft.advancePaymentInput) ?? 0,
     );
     final hasDiscounts =
-        draft.items.any((item) => item.discount.type != DiscountType.none) ||
-        draft.billDiscount.type != DiscountType.none ||
         totals.totalItemDiscountInPaisa > BigInt.zero ||
         totals.billDiscountInPaisa > BigInt.zero;
-    final showOriginalSubtotal =
-        hasDiscounts &&
-        (totals.originalSubtotalInPaisa != draft.subtotalInPaisa ||
-            totals.totalItemDiscountInPaisa > BigInt.zero ||
-            totals.billDiscountInPaisa > BigInt.zero);
-    final showSubtotalAfterItemDiscounts =
-        hasDiscounts &&
-        totals.subtotalAfterItemDiscountsInPaisa !=
-            totals.originalSubtotalInPaisa;
-    final showBillDiscount =
-        hasDiscounts &&
-        (totals.billDiscountInPaisa > BigInt.zero ||
-            draft.billDiscount.type != DiscountType.none);
-    final showFinalPayable =
-        hasDiscounts &&
-        (totals.finalPayableInPaisa !=
-                totals.subtotalAfterItemDiscountsInPaisa ||
-            totals.billDiscountInPaisa > BigInt.zero ||
-            totals.totalItemDiscountInPaisa > BigInt.zero);
+    final hasPaymentAdjustments =
+        totals.previousRemainingInPaisa > BigInt.zero ||
+        totals.advancePaymentInPaisa > BigInt.zero;
+    final showOriginalSubtotal = hasDiscounts;
+    final showSubtotalAfterItemDiscounts = hasDiscounts;
+    final showBillDiscount = totals.billDiscountInPaisa > BigInt.zero;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -212,21 +202,51 @@ class BillItemsSection extends ConsumerWidget {
                     if (showBillDiscount)
                       _BillSummaryRow(
                         label:
-                            'Bill Discount${draft.billDiscount.type == DiscountType.none ? '' : ' (${draft.billDiscount.type.label})'}',
+                            'Bill Discount (${_discountDescription(draft.billDiscount)})',
                         value:
                             '- ${BillAmount.formatPaisaBigInt(totals.billDiscountInPaisa)}',
                       ),
+                    if (hasPaymentAdjustments) ...[
+                      _BillSummaryRow(
+                        label: 'Bill Payable',
+                        value: BillAmount.formatPaisaBigInt(
+                          totals.finalPayableInPaisa,
+                        ),
+                        isEmphasized: true,
+                      ),
+                      if (totals.previousRemainingInPaisa > BigInt.zero)
+                        _BillSummaryRow(
+                          label: 'Previous Remaining',
+                          value: BillAmount.formatPaisaBigInt(
+                            totals.previousRemainingInPaisa,
+                          ),
+                        ),
+                      if (totals.advancePaymentInPaisa > BigInt.zero)
+                        _BillSummaryRow(
+                          label: 'Advance Payment',
+                          value:
+                              '- ${BillAmount.formatPaisaBigInt(totals.advancePaymentInPaisa)}',
+                        ),
+                      if (!totals.netAmountDueInPaisa.isNegative)
+                        _BillSummaryRow(
+                          label: 'Net Amount Due',
+                          value: BillAmount.formatPaisaBigInt(
+                            totals.netAmountDueInPaisa,
+                          ),
+                          isEmphasized: true,
+                        ),
+                    ],
                     if (totals.validationSummary.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.sm),
                       AppInlineMessage(
                         type: AppInlineMessageType.warning,
-                        title: 'Check discount values',
+                        title: 'Check bill values',
                         message: totals.validationSummary.join('\n'),
                       ),
                     ],
                     const Divider(height: 1),
                     const SizedBox(height: AppSpacing.sm),
-                    if (showFinalPayable)
+                    if (!hasPaymentAdjustments && hasDiscounts)
                       _BillSummaryRow(
                         label: 'Final Payable',
                         value: BillAmount.formatPaisaBigInt(
@@ -394,8 +414,10 @@ class _BillItemRowState extends State<_BillItemRow> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
+                  textDirection: TextDirection.ltr,
                   textInputAction: TextInputAction.next,
                   textAlign: TextAlign.end,
+                  inputFormatters: [DecimalInputFormatter()],
                   style: AppTextStyles.inputText.copyWith(color: foreground),
                   decoration: _inputDecoration(
                     context,
@@ -418,6 +440,8 @@ class _BillItemRowState extends State<_BillItemRow> {
                   controller: _descriptionController,
                   focusNode: _descriptionFocusNode,
                   keyboardType: TextInputType.multiline,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
                   textInputAction: TextInputAction.next,
                   textCapitalization: TextCapitalization.sentences,
                   minLines: 1,
@@ -708,6 +732,9 @@ class _BillDiscountEditor extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.left,
+              inputFormatters: [DecimalInputFormatter()],
               decoration: const InputDecoration(
                 hintText: 'Enter discount in PKR',
                 border: OutlineInputBorder(),
@@ -723,6 +750,9 @@ class _BillDiscountEditor extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.left,
+              inputFormatters: [DecimalInputFormatter(decimalPlaces: 2)],
               decoration: const InputDecoration(
                 hintText: 'Enter percentage (0–100)',
                 border: OutlineInputBorder(),
@@ -808,6 +838,9 @@ class _DiscountEditor extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.left,
+              inputFormatters: [DecimalInputFormatter()],
               decoration: const InputDecoration(
                 hintText: 'Enter discount in PKR',
                 border: OutlineInputBorder(),
@@ -823,6 +856,9 @@ class _DiscountEditor extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.left,
+              inputFormatters: [DecimalInputFormatter(decimalPlaces: 2)],
               decoration: const InputDecoration(
                 hintText: 'Enter percentage (0–100)',
                 border: OutlineInputBorder(),
@@ -835,6 +871,14 @@ class _DiscountEditor extends StatelessWidget {
       ),
     );
   }
+}
+
+String _discountDescription(BillDiscount discount) {
+  return switch (discount.type) {
+    DiscountType.fixed => 'Fixed PKR ${discount.fixedInput.trim()}',
+    DiscountType.percentage => '${discount.percentageInput.trim()}%',
+    DiscountType.none => 'No discount',
+  };
 }
 
 class _BillSummaryRow extends StatelessWidget {

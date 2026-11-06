@@ -12,13 +12,9 @@ import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/app_app_bar.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
-import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_field_group.dart';
 import '../../../core/widgets/app_inline_message.dart';
-import '../../../core/widgets/app_loading_indicator.dart';
-import '../../../core/widgets/app_section_header.dart';
 import '../../../core/widgets/app_text_field.dart';
-import '../../company_settings/domain/company_details.dart';
 import '../../company_settings/application/company_settings_providers.dart';
 import '../application/bill_history_refresh_provider.dart';
 import '../application/bill_draft_provider.dart';
@@ -27,8 +23,8 @@ import '../domain/bill_totals.dart';
 import 'bill_draft_navigation_guard.dart';
 import 'voice_input_button.dart';
 import '../domain/bill_amount.dart';
-import '../domain/bill_discount.dart';
-import '../domain/bill_item.dart';
+import 'bill_items_section.dart';
+import 'payment_details_section.dart';
 
 class NewBillScreen extends ConsumerStatefulWidget {
   const NewBillScreen({super.key, this.billId});
@@ -81,7 +77,7 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
         _customerController.text = bill.customerName;
       });
     } catch (error, stackTrace) {
-      ErrorHandler.logError(error, stackTrace, 'Saving bill');
+      ErrorHandler.logError(error, stackTrace, 'Loading saved bill');
       if (!mounted) return;
       setState(() {
         _loadError = 'Saved bill data could not be loaded. Please retry.';
@@ -150,6 +146,7 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
   }
 
   Future<void> _saveBill() async {
+    if (_isSaving) return;
     _customerValidationAttempted = true;
     if (_formKey.currentState?.validate() != true) return;
     final draft = ref.read(billDraftProvider);
@@ -157,9 +154,28 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
       setState(() => _saveError = 'Add at least one bill item before saving.');
       return;
     }
+    final previousRemaining = BillAmount.parsePaisa(
+      draft.previousRemainingInput,
+    );
+    final advancePayment = BillAmount.parsePaisa(draft.advancePaymentInput);
+    if (draft.previousRemainingInput.trim().isNotEmpty &&
+        previousRemaining == null) {
+      setState(() {
+        _saveError = 'Previous Remaining must be a non-negative amount with up to 2 decimal places.';
+      });
+      return;
+    }
+    if (draft.advancePaymentInput.trim().isNotEmpty && advancePayment == null) {
+      setState(() {
+        _saveError = 'Advance Payment must be a non-negative amount with up to 2 decimal places.';
+      });
+      return;
+    }
     final totals = const BillTotalsCalculator().calculate(
       items: draft.items,
       billDiscount: draft.billDiscount,
+      previousRemainingPaisa: previousRemaining ?? 0,
+      advancePaymentPaisa: advancePayment ?? 0,
     );
     if (!totals.isValid) {
       setState(
@@ -186,17 +202,18 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
             items: draft.items,
             billDiscount: draft.billDiscount,
             totals: totals,
+            previousRemainingPaisa: previousRemaining ?? 0,
+            advancePaymentPaisa: advancePayment ?? 0,
           );
       if (!mounted) return;
       ref.read(billHistoryRefreshProvider.notifier).refresh();
-      ref
-          .read(billDraftProvider.notifier)
-          .reset(
-            company: CompanyDetails(
-              name: draft.companySnapshot.name,
-              phone: draft.companySnapshot.phone,
-            ),
-          );
+      if (widget.billId == null) {
+        ref
+            .read(billDraftProvider.notifier)
+            .reset(company: ref.read(companySettingsProvider).asData?.value);
+      } else {
+        ref.read(billDraftProvider.notifier).markSaved();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -206,8 +223,12 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
           ),
         ),
       );
-      context.goNamed(RouteNames.historyName);
-    } catch (_) {
+      context.pushNamed(
+        RouteNames.billPreviewName,
+        queryParameters: {'billId': draft.id},
+      );
+    } catch (error, stackTrace) {
+      ErrorHandler.logError(error, stackTrace, 'Saving bill');
       if (!mounted) return;
       setState(() {
         _saveError =
@@ -227,6 +248,50 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
         selection: TextSelection.collapsed(offset: next.customerName.length),
       );
     });
+
+    if (_isLoadingSavedBill) {
+      return Scaffold(
+        appBar: AppAppBar(
+          title: 'Edit Saved Bill',
+          showBackButton: true,
+          onBack: _leaveToHome,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_loadError != null) {
+      return Scaffold(
+        appBar: AppAppBar(
+          title: 'Edit Saved Bill',
+          showBackButton: true,
+          onBack: _leaveToHome,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.pagePadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_loadError!, textAlign: TextAlign.center),
+                const SizedBox(height: AppSpacing.md),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isLoadingSavedBill = true;
+                      _loadError = null;
+                    });
+                    _loadSavedBill();
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final draftFields = ref.watch(
       billDraftProvider.select(
@@ -342,6 +407,8 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
                             controller: _customerController,
                             focusNode: _customerFocusNode,
                             keyboardType: TextInputType.name,
+                            textDirection: TextDirection.ltr,
+                            textAlign: TextAlign.left,
                             textInputAction: TextInputAction.done,
                             textCapitalization: TextCapitalization.words,
                             isRequired: true,
@@ -372,8 +439,12 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
                             ),
                             readOnly: true,
                             textInputAction: TextInputAction.none,
-                            prefixIcon: const Icon(Icons.calendar_month_outlined),
-                            suffixIcon: const Icon(Icons.arrow_drop_down_rounded),
+                            prefixIcon: const Icon(
+                              Icons.calendar_month_outlined,
+                            ),
+                            suffixIcon: const Icon(
+                              Icons.arrow_drop_down_rounded,
+                            ),
                             semanticLabel: 'Bill date, select a date',
                             onTap: () => _selectBillDate(draftFields.billDate),
                           ),
@@ -384,12 +455,13 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
                         label: 'Smart Voice Entry',
                         icon: Icons.mic_rounded,
                         variant: AppButtonVariant.outlined,
-                        onPressed: () => context.pushNamed(
-                          RouteNames.smartVoiceEntryName,
-                        ),
+                        onPressed: () =>
+                            context.pushNamed(RouteNames.smartVoiceEntryName),
                       ),
                       const SizedBox(height: AppSpacing.sectionGap),
-                      const _NewBillItemsSection(),
+                      const BillItemsSection(),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      const PaymentDetailsSection(),
                       if (_saveError != null) ...[
                         const SizedBox(height: AppSpacing.md),
                         AppInlineMessage(
@@ -402,11 +474,14 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
                       AppButton(
                         label: 'Preview Draft',
                         icon: Icons.preview_outlined,
-                        onPressed: () => context.pushNamed(RouteNames.billPreviewName),
+                        onPressed: () =>
+                            context.pushNamed(RouteNames.billPreviewName),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       AppButton(
-                        label: widget.billId == null ? 'Save Bill' : 'Update Bill',
+                        label: widget.billId == null
+                            ? 'Save Bill'
+                            : 'Update Bill',
                         icon: Icons.save_outlined,
                         loading: _isSaving,
                         onPressed: _isSaving ? null : _saveBill,
@@ -427,318 +502,6 @@ class _NewBillScreenState extends ConsumerState<NewBillScreen>
           },
         ),
       ),
-    );
-  }
-}
-
-class _NewBillItemsSection extends ConsumerWidget {
-  const _NewBillItemsSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final draft = ref.watch(billDraftProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const AppSectionHeader(
-          icon: Icons.build_outlined,
-          title: 'Bill Items',
-          subtitle: 'Service and repair details',
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 26,
-                      child: Text(
-                        'S.No',
-                        style: AppTextStyles.sectionLabel.copyWith(
-                          color: isDark
-                              ? const Color(0xFFB0C4DE)
-                              : AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    Expanded(
-                      child: Text(
-                        'Particular / Detail',
-                        style: AppTextStyles.sectionLabel.copyWith(
-                          color: isDark
-                              ? const Color(0xFFB0C4DE)
-                              : AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    SizedBox(
-                      width: 88,
-                      child: Text(
-                        'Amount (PKR)',
-                        textAlign: TextAlign.end,
-                        style: AppTextStyles.sectionLabel.copyWith(
-                          color: isDark
-                              ? const Color(0xFFB0C4DE)
-                              : AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.touchTarget),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              if (draft.items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.playlist_add_outlined,
-                        color: isDark
-                            ? const Color(0xFF9BB3C6)
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          'No items yet. Add a service or repair entry.',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: isDark
-                                ? const Color(0xFF9BB3C6)
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: draft.items.length,
-                  separatorBuilder: (_, __) => const Divider(
-                    height: 1,
-                    indent: AppSpacing.sm,
-                    endIndent: AppSpacing.sm,
-                  ),
-                  itemBuilder: (context, index) {
-                    final item = draft.items[index];
-                    final serialNumber = index + 1;
-                    final descriptionController = TextEditingController(
-                      text: item.description,
-                    );
-                    final amountController = TextEditingController(
-                      text: item.amountInput,
-                    );
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.sm,
-                      ),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 26,
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 14),
-                              child: Text(
-                                '$serialNumber.',
-                                key: ValueKey('bill-item-serial-${item.id}'),
-                                style: AppTextStyles.bodyMedium.copyWith(
-                                  color: isDark
-                                      ? const Color(0xFFB0C4DE)
-                                      : AppColors.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Expanded(
-                            child: TextField(
-                              key: ValueKey('bill-item-description-${item.id}'),
-                              controller: descriptionController,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm,
-                                  vertical: 12,
-                                ),
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) => ref
-                                  .read(billDraftProvider.notifier)
-                                  .updateItemDescription(item.id, value),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          SizedBox(
-                            width: 110,
-                            child: TextField(
-                              key: ValueKey('bill-item-amount-${item.id}'),
-                              controller: amountController,
-                              keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm,
-                                  vertical: 12,
-                                ),
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (value) => ref
-                                  .read(billDraftProvider.notifier)
-                                  .updateItemAmount(item.id, value),
-                            ),
-                          ),
-                          SizedBox(
-                            width: AppSpacing.touchTarget,
-                            height: AppSpacing.touchTarget,
-                            child: Semantics(
-                              label: 'Delete item $serialNumber',
-                              button: true,
-                              child: IconButton(
-                                tooltip: 'Delete item $serialNumber',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: AppSpacing.touchTarget,
-                                  height: AppSpacing.touchTarget,
-                                ),
-                                onPressed: () async {
-                                  final confirmed = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: Text('Delete item $serialNumber?'),
-                                      content: const Text(
-                                        'This item will be removed from the bill.',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context, false),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(context, true),
-                                          child: const Text('Delete'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirmed == true) {
-                                    ref
-                                        .read(billDraftProvider.notifier)
-                                        .deleteItem(item.id);
-                                  }
-                                },
-                                icon: const Icon(Icons.delete_outline_rounded),
-                                color: isDark
-                                    ? const Color(0xFFE59898)
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () =>
-                        ref.read(billDraftProvider.notifier).addItem(),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Add Item'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.accent,
-                      minimumSize: const Size(48, AppSpacing.touchTarget),
-                    ),
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Subtotal',
-                            style: AppTextStyles.headingSmall.copyWith(
-                              color: isDark
-                                  ? const Color(0xFFE8ECF0)
-                                  : AppColors.primary,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          BillAmount.formatPaisaBigInt(draft.subtotalInPaisa),
-                          key: const ValueKey('bill-subtotal'),
-                          textAlign: TextAlign.end,
-                          style: AppTextStyles.amountSmall.copyWith(
-                            color: isDark
-                                ? const Color(0xFFE8ECF0)
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (draft.items.isEmpty) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'No charges entered',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: isDark
-                              ? const Color(0xFF9BB3C6)
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ] else if (draft.hasIncompleteItems) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        'Subtotal is provisional until every item description and amount is complete.',
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: isDark
-                              ? const Color(0xFF9BB3C6)
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

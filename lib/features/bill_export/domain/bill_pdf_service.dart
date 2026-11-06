@@ -370,7 +370,7 @@ class BillPdfService {
                       discount > BigInt.zero) ...[
                     pw.SizedBox(height: 2),
                     pw.Text(
-                      'Item Discount: -${BillAmount.formatPaisaBigInt(discount)}',
+                      'Item Discount (${_itemDiscountLabel(item.discount)}): -${BillAmount.formatPaisaBigInt(discount)}',
                       style: pw.TextStyle(
                         fontSize: compact ? 7 : 8,
                         color: success,
@@ -411,27 +411,50 @@ class BillPdfService {
     required PdfColor text,
     required PdfColor success,
   }) {
+    final hasDiscounts =
+        totals.totalItemDiscountInPaisa > BigInt.zero ||
+        totals.billDiscountInPaisa > BigInt.zero;
+    final hasPaymentAdjustments =
+        totals.previousRemainingInPaisa > BigInt.zero ||
+        totals.advancePaymentInPaisa > BigInt.zero;
     final rows = <(String, String, bool)>[
-      (
-        'Original Subtotal',
-        BillAmount.formatPaisaBigInt(totals.originalSubtotalInPaisa),
-        false,
-      ),
+      if (hasDiscounts)
+        (
+          'Original Subtotal',
+          BillAmount.formatPaisaBigInt(totals.originalSubtotalInPaisa),
+          false,
+        ),
       if (totals.totalItemDiscountInPaisa > BigInt.zero)
         (
           'Item Discounts',
           '-${BillAmount.formatPaisaBigInt(totals.totalItemDiscountInPaisa)}',
           true,
         ),
-      (
-        'Subtotal After Discounts',
-        BillAmount.formatPaisaBigInt(totals.subtotalAfterItemDiscountsInPaisa),
-        false,
-      ),
+      if (totals.totalItemDiscountInPaisa > BigInt.zero)
+        (
+          'Subtotal After Item Discounts',
+          BillAmount.formatPaisaBigInt(
+            totals.subtotalAfterItemDiscountsInPaisa,
+          ),
+          false,
+        ),
       if (totals.billDiscountInPaisa > BigInt.zero)
         (
           _billDiscountLabel(totals.billDiscount),
           '-${BillAmount.formatPaisaBigInt(totals.billDiscountInPaisa)}',
+          true,
+        ),
+      if (hasPaymentAdjustments &&
+          totals.previousRemainingInPaisa > BigInt.zero)
+        (
+          'Previous Remaining',
+          BillAmount.formatPaisaBigInt(totals.previousRemainingInPaisa),
+          false,
+        ),
+      if (hasPaymentAdjustments && totals.advancePaymentInPaisa > BigInt.zero)
+        (
+          'Advance Payment',
+          '-${BillAmount.formatPaisaBigInt(totals.advancePaymentInPaisa)}',
           true,
         ),
     ];
@@ -447,9 +470,22 @@ class BillPdfService {
             valueColor: isNegative ? success : text,
           ),
         pw.Divider(color: PdfColors.grey400, height: compact ? 12 : 16),
+        if (hasPaymentAdjustments)
+          _summaryRow(
+            'Bill Payable',
+            BillAmount.formatPaisaBigInt(totals.finalPayableInPaisa),
+            fontSize: bodySize + 1,
+            text: text,
+            valueColor: text,
+            bold: true,
+          ),
         _summaryRow(
-          'FINAL PAYABLE',
-          BillAmount.formatPaisaBigInt(totals.finalPayableInPaisa),
+          hasPaymentAdjustments ? 'NET AMOUNT DUE' : 'FINAL PAYABLE',
+          BillAmount.formatPaisaBigInt(
+            hasPaymentAdjustments
+                ? totals.netAmountDueInPaisa
+                : totals.finalPayableInPaisa,
+          ),
           fontSize: bodySize + 2,
           text: text,
           valueColor: text,
@@ -571,7 +607,16 @@ class BillPdfService {
     if (discount.type == DiscountType.percentage) {
       return 'Overall Discount (${discount.percentageInput.trim()}%)';
     }
-    return 'Overall Discount';
+    return 'Overall Discount (${discount.fixedInput.trim()} PKR fixed)';
+  }
+
+  String _itemDiscountLabel(BillDiscount discount) {
+    return switch (discount.type) {
+      DiscountType.fixed => '${discount.fixedInput.trim()} PKR fixed',
+      DiscountType.percentage =>
+        '${discount.percentageInput.trim()}% percentage',
+      DiscountType.none => '',
+    };
   }
 
   String _displayDate(DateTime date) => BillDateUtils.formatBillDate(date);

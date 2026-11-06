@@ -13,9 +13,18 @@ void main() {
   });
 
   testWidgets('render new bill screen directly', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: NewBillScreen())));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: NewBillScreen())),
+    );
     await tester.pumpAndSettle();
-    print('texts: ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data ?? '').toList()}');
+    print(
+      'texts: ${tester.widgetList<Text>(find.byType(Text)).map((t) => t.data ?? '').toList()}',
+    );
+    await tester.dragUntilVisible(
+      find.text('Bill Items'),
+      find.byType(ListView).first,
+      const Offset(0, -300),
+    );
     expect(find.text('Bill Items'), findsOneWidget);
   });
 }

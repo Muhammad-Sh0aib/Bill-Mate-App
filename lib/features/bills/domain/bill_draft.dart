@@ -23,6 +23,8 @@ class BillDraft {
     required this.createdAt,
     required this.hasUnsavedChanges,
     this.billDiscount = const BillDiscount(),
+    this.previousRemainingInput = '',
+    this.advancePaymentInput = '',
     List<BillItem> items = const [],
   }) : items = List.unmodifiable(items);
 
@@ -33,6 +35,8 @@ class BillDraft {
   final DateTime createdAt;
   final bool hasUnsavedChanges;
   final BillDiscount billDiscount;
+  final String previousRemainingInput;
+  final String advancePaymentInput;
   final List<BillItem> items;
 
   BigInt get subtotalInPaisa => BillCalculations.subtotalInPaisa(items);
@@ -45,6 +49,8 @@ class BillDraft {
     CompanyInfoSnapshot? companySnapshot,
     bool? hasUnsavedChanges,
     BillDiscount? billDiscount,
+    String? previousRemainingInput,
+    String? advancePaymentInput,
     List<BillItem>? items,
   }) {
     return BillDraft(
@@ -55,6 +61,9 @@ class BillDraft {
       createdAt: createdAt,
       hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
       billDiscount: billDiscount ?? this.billDiscount,
+      previousRemainingInput:
+          previousRemainingInput ?? this.previousRemainingInput,
+      advancePaymentInput: advancePaymentInput ?? this.advancePaymentInput,
       items: items ?? this.items,
     );
   }
