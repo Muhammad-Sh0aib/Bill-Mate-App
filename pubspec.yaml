@@ -39,6 +39,8 @@ dependencies:
   image: ^4.12.0
   speech_to_text: ^7.5.0
   app_settings: ^9.0.1
+  package_info_plus: ^10.2.2
+  url_launcher: ^6.3.2
 
 # ── Development dependencies ──────────────────────────────────────────
 dev_dependencies:
@@ -47,6 +49,15 @@ dev_dependencies:
 
   # Lint rules for Flutter projects
   flutter_lints: ^6.0.0
+  change_app_package_name: ^1.5.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+
 
 # ── Additional OS integrations ───────────────────────────────────────
 # Voice dictation and system settings access for microphone permission flow.
@@ -58,6 +69,7 @@ flutter:
   assets:
     - assets/fonts/Roboto-Regular.ttf
     - assets/fonts/Roboto-Bold.ttf
+    - assets/images/
 
   # Fonts: Google Fonts or custom font files go here.
   # The current design uses the system font stack (Roboto on Android).

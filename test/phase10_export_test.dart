@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:bill_mate/app/config/app_config.dart';
 import 'package:bill_mate/features/bill_export/domain/bill_document_data.dart';
 import 'package:bill_mate/features/bill_export/domain/bill_pdf_service.dart';
 import 'package:bill_mate/features/bills/domain/bill_discount.dart';
@@ -8,6 +9,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('developer credit is centralized and consistent', () {
+    expect(DeveloperBranding.name, 'Muhammad Shoaib');
+    expect(DeveloperBranding.phoneNumber, '0315 1080450');
+    expect(DeveloperBranding.telephoneLink, 'tel:03151080450');
+    expect(
+      DeveloperBranding.billCredit,
+      'Developed by Muhammad Shoaib | Contact: 0315 1080450',
+    );
+  });
 
   test('bill export filenames are safe and page names are unique', () {
     final bill = _sampleBill(
@@ -69,6 +80,14 @@ void main() {
       expect(double.parse(pageSize!.group(1)!), closeTo(419.53, 0.1));
       expect(double.parse(pageSize.group(2)!), closeTo(595.28, 0.1));
       expect(bill.totals.finalPayableInPaisa, BigInt.from(5_445_000));
+
+      for (final paperSize in [BillPaperSize.compact, BillPaperSize.a4]) {
+        final otherSizeBytes = await BillPdfService.instance.generate(
+          bill,
+          paperSize: paperSize,
+        );
+        expect(latin1.decode(otherSizeBytes.take(5).toList()), '%PDF-');
+      }
     },
   );
 

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/config/app_config.dart';
 import '../../../app/router/route_names.dart';
+import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_dimensions.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/widgets/app_app_bar.dart';
@@ -29,6 +33,7 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _companyNameController;
   late final TextEditingController _phoneController;
+  late final Future<PackageInfo> _packageInfoFuture;
   bool _isSaving = false;
   bool _hasEdited = false;
   String? _saveError;
@@ -36,11 +41,36 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _packageInfoFuture = PackageInfo.fromPlatform();
     _companyNameController = TextEditingController(
       text: AppConfig.defaultCompanyName,
     );
     _phoneController = TextEditingController(
       text: AppConfig.defaultCompanyPhone,
+    );
+  }
+
+  Future<void> _contactDeveloper() async {
+    try {
+      final opened = await launchUrl(
+        Uri.parse(DeveloperBranding.telephoneLink),
+        mode: LaunchMode.platformDefault,
+      );
+      if (!opened && mounted) {
+        _showContactError();
+      }
+    } on PlatformException {
+      if (mounted) _showContactError();
+    }
+  }
+
+  void _showContactError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Unable to open the phone app. Call ${DeveloperBranding.phoneNumber} directly.',
+        ),
+      ),
     );
   }
 
@@ -204,6 +234,85 @@ class _CompanySettingsScreenState extends ConsumerState<CompanySettingsScreen> {
                 _SettingsInfo(
                   label: 'Workshop Focus',
                   value: 'Offset Printing Press Machinery',
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            AppFieldGroup(
+              title: 'About BillMate',
+              icon: Icons.info_outline_rounded,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppConfig.appName,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 2),
+                          FutureBuilder<PackageInfo>(
+                            future: _packageInfoFuture,
+                            builder: (context, snapshot) {
+                              final version = snapshot.hasData
+                                  ? snapshot.data!.version
+                                  : snapshot.hasError
+                                  ? 'Unavailable'
+                                  : 'Loading...';
+                              return Text(
+                                'Version $version',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  DeveloperBranding.developedBy,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  DeveloperBranding.craftedBy,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _contactDeveloper,
+                    icon: const Icon(Icons.phone_outlined, size: 18),
+                    label: const Text(DeveloperBranding.contact),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.accent,
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(48, 40),
+                      alignment: Alignment.centerLeft,
+                    ),
+                  ),
                 ),
               ],
             ),

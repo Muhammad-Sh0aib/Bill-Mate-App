@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../app/config/app_config.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../bills/domain/bill_amount.dart';
@@ -27,6 +28,7 @@ class BillPdfService {
     final margin = compact ? 17.0 : 21.0;
     final bodySize = compact ? 8.5 : 9.0;
     final primary = _pdfColor(AppColors.primary);
+    final accent = _pdfColor(AppColors.accent);
     final text = _pdfColor(AppColors.documentTextPrimary);
     const secondary = PdfColors.grey700;
     const border = PdfColors.grey400;
@@ -52,19 +54,51 @@ class BillPdfService {
           text: text,
           secondary: secondary,
         ),
-        footer: (context) => pw.Container(
-          alignment: pw.Alignment.center,
-          padding: const pw.EdgeInsets.only(top: 5),
-          decoration: const pw.BoxDecoration(
-            border: pw.Border(
-              top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+        footer: (context) {
+          final isLastPage = context.pageNumber == context.pagesCount;
+          return pw.Container(
+            alignment: pw.Alignment.center,
+            padding: const pw.EdgeInsets.only(top: 5),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(
+                top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+              ),
             ),
-          ),
-          child: pw.Text(
-            'Page ${context.pageNumber}',
-            style: pw.TextStyle(fontSize: compact ? 7 : 8, color: secondary),
-          ),
-        ),
+            child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
+              children: [
+                if (isLastPage) ...[
+                  pw.RichText(
+                    textAlign: pw.TextAlign.center,
+                    text: pw.TextSpan(
+                      style: pw.TextStyle(
+                        fontSize: compact ? 7 : 8,
+                        color: secondary,
+                      ),
+                      children: [
+                        const pw.TextSpan(
+                          text: '${DeveloperBranding.developedBy} | ',
+                        ),
+                        pw.TextSpan(
+                          text: DeveloperBranding.contact,
+                          style: pw.TextStyle(color: accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                ],
+                pw.Text(
+                  'Page ${context.pageNumber}',
+                  style: pw.TextStyle(
+                    fontSize: compact ? 7 : 8,
+                    color: secondary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
         build: (context) => [
           pw.Container(
             width: double.infinity,

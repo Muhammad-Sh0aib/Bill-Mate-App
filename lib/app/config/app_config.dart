@@ -31,3 +31,15 @@ class AppConfig {
   /// a future localization phase.
   static const String defaultLocale = 'en_PK';
 }
+
+class DeveloperBranding {
+  DeveloperBranding._();
+
+  static const String name = 'Muhammad Shoaib';
+  static const String phoneNumber = '0315 1080450';
+  static const String telephoneLink = 'tel:03151080450';
+  static const String developedBy = 'Developed by $name';
+  static const String contact = 'Contact: $phoneNumber';
+  static const String billCredit = '$developedBy | $contact';
+  static const String craftedBy = 'Crafted with care by $name';
+}

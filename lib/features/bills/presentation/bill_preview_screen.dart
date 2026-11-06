@@ -694,6 +694,27 @@ class _PaperDocument extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1, color: AppColors.divider),
+            const SizedBox(height: AppSpacing.sm),
+            Center(
+              child: RichText(
+                textAlign: TextAlign.center,
+                text: const TextSpan(
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                  ),
+                  children: [
+                    TextSpan(text: '${DeveloperBranding.developedBy} | '),
+                    TextSpan(
+                      text: DeveloperBranding.contact,
+                      style: TextStyle(color: AppColors.accent),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

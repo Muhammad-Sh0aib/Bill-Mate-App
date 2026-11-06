@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.billmate.workshop"
+    namespace = "com.shoaib.billmate"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.billmate.workshop"
+        applicationId = "com.shoaib.billmate"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
